@@ -1,62 +1,40 @@
-import { List } from "lodash";
+export function executeWithClosestCreep<T extends Creep>(action: Action, structures: Array<RoomPosition | { pos: RoomPosition }> = [], creeps: Creeps<T>, args: any[] = []) {
+  const tasks = getTasks(structures, creeps);
+  planTasks(tasks).assignments.forEach((creepName, i) => {
+    executeTask(Game.creeps[creepName], action, structures[i], args);
+    delete creeps[creepName];
+  });
+}
 
-export function findOptimal(dists: [[number, number]], index = 0, totalDist = 0, stop = false) {
-    let minimum = Infinity;
-    let assignments: number[] = [];
+function planTasks(tasks: Tasks, totalDist = 0, assignments: string[] = []): Dispatch {
+  if (tasks.length === 0 || _.isEmpty(tasks[0])) {
+    return { assignments, length: totalDist }
+  } else {
+    const plannedTasks: Dispatch[] = [];
 
-    dists[index].forEach((dist, i) => {
-        if (totalDist + dist < minimum) {
-            if (index < dists.length - 1) {
-                const res = findOptimal(dists, index + 1, totalDist + dist, i);
+    Object.keys(tasks[0]).forEach((creepName) => {
+      const newTasks = tasks.slice(1).map((t) => {
+        const { [creepName]: omit, ...rest } = t;
+        return rest;
+      });
 
-                if (totalDist + res.distance < minimum) {
-                    minimum = totalDist + res.distance;
-                    assignments = [i].concat(res.assignments)
-                }
-            } else {
-                minimum = totalDist + dist;
-                assignments = [i];
-            }
-        }
+      plannedTasks.push(planTasks(newTasks, totalDist + tasks[0][creepName], assignments.concat(creepName)));
     });
 
-    return {
-        assignments,
-        distance: minimum,
-    }
+    return _.min(plannedTasks, (d) => d.length);
+  }
 }
 
-interface Dispatch {
-    assignments: string[];
-    length: number;
+function getTasks<T extends Creep>(structures: Array<RoomPosition | { pos: RoomPosition }>, creeps: Creeps<T>): Tasks {
+  return structures.map((s) => {
+    return _.reduce(creeps, (t, c) => {
+      return { ...t, [c.name]: c.pos.getRangeTo(s) }
+    }, {});
+  });
 }
 
-interface Task {
-    [creepName: string]: number
-}
-
-type Tasks = Task[];
-
-const allTasks = [
-    { bob: 2, charles: 1 },
-    { bob: 6, charles: 2 },
-];
-
-function dispatchCreeps(tasks: Tasks, totalDist = 0, assignments: string[] = []): Dispatch {
-    if (tasks.length === 0 || _.isEmpty(tasks[0])) { // TODO: Gérer le fait que le nombre de creeps et le nombre de tasks ne soit pas égal.
-        return { assignments, length: totalDist }
-    } else {
-        const dispatches: Dispatch[] = [];
-
-        Object.keys(tasks[0]).forEach((creepName) => {
-            const newTasks = tasks.slice(1).map((t) => {
-                const { [creepName]: omit, ...rest } = t;
-                return rest;
-            });
-
-            dispatches.push(dispatchCreeps(newTasks, totalDist + tasks[0][creepName], assignments.concat(creepName)));
-        });
-
-        return _.min(dispatches, (d) => d.length);
-    }
+export function executeTask(creep: Creep, action: Action, structure: RoomPosition | { pos: RoomPosition }, args: any[]) {
+  if ((creep as any)[action](structure, ...args) === ERR_NOT_IN_RANGE) {
+    creep.moveTo(structure, { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
+  }
 }
