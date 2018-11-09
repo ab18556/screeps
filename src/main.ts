@@ -1,158 +1,241 @@
 import { spawnLoop } from "collections/Spawns";
+import { RoomEntities } from "room";
 import { executeWithClosestCreep } from "taskDispatch";
 import { ErrorMapper } from "utils/ErrorMapper";
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
+  Memory.progress = Memory.progress > 20000 ? Memory.progress : 20000;
+  Memory.progress++;
+  console.log(Memory.progress)
+
   initMemory();
   cleanMissinCreepsMemory();
 
   _.forEach(Game.rooms, (room) => {
-    const towers = findTowers(room);
-    const containers = findContainers(room);
-    const activeContainers = findActiveContainers(room);
-    const rechargeableStructures = findRechargeableStructures(room);
-    const brokenRoads = findBrokenRoads(room);
-    const brokenStructures = findBrokenStructures(room);
-    const constructionSites = findConstructionSites(room);
-    const tombstones = findTombstones(room);
-    const creeps = getCreepsGroupedByRole();
-    const idleWorkerCreeps = { ...creeps.worker };
-    const hostiles = room.find(FIND_HOSTILE_CREEPS);
+    if (['W16N39', 'W15N39'].includes(room.name)) {
+      const roomEntities = new RoomEntities(room);
+      const {
+        creeps,
+        towers,
+        sources,
+        storage,
+        rechargeableTowers,
+        rechargeableSpawnRelatedStructures,
+        brokenRoads,
+        brokenWalls,
+        activeContainers,
+        storageLink,
+        brokenStructures,
+        constructionSites,
+        hostiles,
+        links,
+        droppedEnergy,
+        tombstones,
+      } = roomEntities;
+      const idleWorkerCreeps = { ...creeps.worker };
 
-    cleanMissingTowersMemory(towers);
+      cleanMissingTowersMemory(towers);
 
-    // Spawning Creeps
-    spawnLoop(creeps, _.map(Game.spawns), containers);
+      // Spawning Creeps
+      spawnLoop(creeps, roomEntities);
 
-    _.forEach({ ...idleWorkerCreeps }, (c) => recharge(c, idleWorkerCreeps));
-    _.forEach(creeps.roadWorker, (c) => recharge(c));
+      _.forEach(_.sortBy(idleWorkerCreeps, (c) => c.carryCapacity - c.carry.energy), (c) => recharge(c, idleWorkerCreeps));
 
-    // Harvesters loop
-    Object.keys(creeps.harvester).forEach((h, i) => {
-      const container = containers[i];
-      const source = room.find(FIND_SOURCES)[i];
-      const amountHarvestedPerTick = creeps.harvester[h].memory.workMultiplier * 2;
-      const softCapacity = Math.floor(creeps.harvester[h].carryCapacity / amountHarvestedPerTick) * amountHarvestedPerTick;
+      // Harvesters loop
+      Object.keys(creeps.harvester).forEach((h, i) => {
+        const creep: HarvesterCreep = Game.creeps[h] as HarvesterCreep;
+        const amountHarvestedPerTick = creep.memory.workMultiplier * 2;
+        const softCapacity = Math.floor(creep.carryCapacity / amountHarvestedPerTick) * amountHarvestedPerTick;
+        const source = Game.getObjectById<Source>(creep.memory.assignments.sourceId) as Source;
+        const store = Game.getObjectById<StructureContainer | StructureLink>(creep.memory.assignments.storeId);
 
-      if (creeps.harvester[h].carry.energy > amountHarvestedPerTick * 2) {
-        const amount = Math.min(container.storeCapacity - container.store.energy, creeps.harvester[h].carry.energy);
+        if (store) {
+          if (creeps.harvester[h].carry.energy > amountHarvestedPerTick * 2) {
+            const capacity = (store as StructureContainer).storeCapacity || (store as StructureLink).energyCapacity;
+            const energy = (store as StructureContainer).store ? (store as StructureContainer).store.energy : (store as StructureLink).energy;
+            const amount = Math.min(capacity - energy, creeps.harvester[h].carry.energy);
 
-        if (creeps.harvester[h].transfer(container, RESOURCE_ENERGY, amount) === ERR_NOT_IN_RANGE) {
-          creeps.harvester[h].moveTo(container, { reusePath: 10 });
-        }
-      }
-
-      if (container.hits < container.hitsMax && creeps.harvester[h].carry.energy) {
-        if (creeps.harvester[h].repair(container)) {
-          creeps.harvester[h].moveTo(container, { reusePath: 10 });
-        };
-      }
-
-      if (creeps.harvester[h].carry.energy < softCapacity) {
-        if (creeps.harvester[h].harvest(source) === ERR_NOT_IN_RANGE) {
-          creeps.harvester[h].moveTo(source, { reusePath: 10 });
-        }
-      }
-    });
-
-    // Planning moves
-    executeWithClosestCreep('transfer', rechargeableStructures, idleWorkerCreeps, [RESOURCE_ENERGY]);
-
-    if (brokenRoads.length === 0) {
-      Object.keys(creeps.roadWorker).forEach((n) => rest(creeps.roadWorker[n]));
-    } else {
-      executeWithClosestCreep('repair', brokenRoads, { ...creeps.roadWorker });
-    }
-
-    executeWithClosestCreep('repair', brokenStructures, idleWorkerCreeps);
-
-    while (constructionSites.length > 0 && !_.isEmpty(idleWorkerCreeps)) {
-      executeWithClosestCreep('build', constructionSites, idleWorkerCreeps)
-    }
-
-    _.forEach(towers, (t) => {
-      const criticalyBrokenRoad = brokenRoads.filter((r) => r.hits < r.hitsMax * 0.75);
-      if (hostiles.length > 0) {
-        const closestHostile = hostiles.reduce((ch, h, i, a) => {
-          const currentRange = t.pos.getRangeTo(h);
-          if (currentRange < ch.range) {
-            return { hostile: h, range: currentRange }
-          } else {
-            return ch;
-          }
-        }, { hostile: hostiles[0], range: Infinity });
-
-        t.attack(closestHostile.hostile);
-      } else if (criticalyBrokenRoad.length > 0) {
-        const closestBrokenRoad = criticalyBrokenRoad.reduce((cbr, r, i, a) => {
-          const currentRange = t.pos.getRangeTo(r);
-          if (currentRange < cbr.range) {
-            return { road: r, range: currentRange }
-          } else {
-            return cbr;
-          }
-        }, { road: brokenRoads[0], range: Infinity });
-
-        t.repair(closestBrokenRoad.road);
-      }
-    })
-
-    _.forEach(idleWorkerCreeps, (c) => {
-      if (room.controller) {
-        if (c.upgradeController(room.controller) === ERR_NOT_IN_RANGE) {
-          c.moveTo(room.controller, { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
-        }
-      }
-    });
-
-    function rest(creep: Creep) {
-      // creep.moveTo(room.find(FIND_FLAGS, { filter: (f) => f.color === COLOR_WHITE })[0]);
-      if (room.controller) {
-        if (creep.upgradeController(room.controller) === ERR_NOT_IN_RANGE) {
-          creep.moveTo(room.controller, { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
-        }
-      }
-    }
-
-    function recharge<T extends Creep>(c: AnyCreep, removeFrom?: Creeps<T>) {
-      if (!c.carry.energy) {
-        c.memory.isHarvesting = true;
-      }
-      if (c.memory.isHarvesting) {
-        if (c.carry.energy === c.carryCapacity) {
-          c.memory.isHarvesting = false;
-        } else {
-          if (tombstones.length > 0) {
-            if (c.withdraw(tombstones[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-              c.moveTo(tombstones[0], { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
+            if (creeps.harvester[h].transfer(store, RESOURCE_ENERGY, amount) === ERR_NOT_IN_RANGE) {
+              creeps.harvester[h].moveTo(store);
             }
           }
-          if (activeContainers.length > 0) {
-            const closestContainer = _.sortBy(activeContainers, (x) => c.pos.getRangeTo(x))[0];
-            if (c.withdraw(closestContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-              c.moveTo(closestContainer, { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
+
+          if (store.hits < store.hitsMax && creeps.harvester[h].carry.energy) {
+            if (creeps.harvester[h].repair(store)) {
+              creeps.harvester[h].moveTo(store);
+            };
+          }
+
+          if (creeps.harvester[h].carry.energy < softCapacity) {
+            if (creeps.harvester[h].harvest(source) === ERR_NOT_IN_RANGE) {
+              creeps.harvester[h].moveTo(source);
             }
-          } else {
-            const sources = room.find(FIND_SOURCES_ACTIVE);
-            if (sources.length > 0) {
-              const closestSource = _.sortBy(sources, (x) => c.pos.getRangeTo(x))[0];
-              if (c.harvest(closestSource) === ERR_NOT_IN_RANGE) {
-                c.moveTo(closestSource, { visualizePathStyle: { stroke: '#ffffff' }, reusePath: 0 });
+          }
+        }
+      });
+
+      // Planning moves
+      executeWithClosestCreep('transfer', rechargeableSpawnRelatedStructures, idleWorkerCreeps, [RESOURCE_ENERGY]);
+
+      if (Object.keys(creeps.carrier).length === 0) {
+        executeWithClosestCreep('transfer', rechargeableTowers, idleWorkerCreeps, [RESOURCE_ENERGY]);
+      }
+
+      _.forEach(creeps.carrier, (c) => {
+        if (!c.carry.energy || (storageLink && c.carryCapacity - c.carry.energy > storageLink.energy)) {
+          c.memory.isHarvesting = true;
+        }
+
+        if (c.memory.isHarvesting) {
+          if (storageLink && storageLink.energy > 0) {
+            if (c.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+              c.moveTo(storageLink);
+            } else {
+              c.memory.isHarvesting = false;
+            }
+          } else if (activeContainers.length > 0) {
+
+            const largestEnergySource = _.sortByOrder(activeContainers, (s: StructureContainer & StructureLink) => (s.store && s.store.energy) || s.energy, 'desc')[0];
+
+            if (largestEnergySource) {
+              if (c.withdraw(largestEnergySource, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                c.moveTo(largestEnergySource);
+              } else {
+                c.memory.isHarvesting = false;
               }
             }
           }
-          if (removeFrom) {
-            delete idleWorkerCreeps[c.name];
+          else {
+            c.memory.isHarvesting = false;
+          }
+        } else {
+          if (rechargeableSpawnRelatedStructures.length > 0) {
+            const closestSpawnRelatedStructures = _.sortBy(rechargeableSpawnRelatedStructures, (s) => c.pos.getRangeTo(s))[0];
+            if (c.transfer(closestSpawnRelatedStructures, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+              c.moveTo(closestSpawnRelatedStructures);
+            }
+          } else if (rechargeableTowers.length > 0 && _.any(rechargeableTowers, (t) => t.energy / t.energyCapacity < 0.75)) {
+            const nearTower = _.find(rechargeableTowers, (t) => c.pos.isNearTo(t) && t.energy / t.energyCapacity < 0.75);
+            const bestTower = nearTower || _.sortByAll(rechargeableTowers, [(s) => Math.floor(s.energy / s.energyCapacity * 100 / 20), (s) => c.pos.getRangeTo(s)])[0];
+
+            if (c.transfer(bestTower, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+              c.moveTo(bestTower);
+            }
+          } else if (storage && storage.store.energy !== storage.storeCapacity) {
+            if (c.transfer(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+              c.moveTo(storage);
+            }
+          }
+        }
+      });
+
+      executeWithClosestCreep('repair', brokenStructures, idleWorkerCreeps);
+
+      if (constructionSites.length > 0 && Object.keys(creeps.builder).length === 0) {
+        // TODO: Remove crappy sort
+        executeWithClosestCreep('build', [_.sortBy(constructionSites, (s) => s.pos.x).reverse()[0]], idleWorkerCreeps)
+      }
+
+      _.forEach(towers, (t) => {
+        const brokenPublicStructures = _.sortByOrder([...brokenRoads, ...brokenWalls], [(s) => s.hits / s.hitsMax, (s) => t.pos.getRangeTo(s)]);
+        if (hostiles.length > 0) {
+          const closestHostile = hostiles.reduce((ch, h, i, a) => {
+            const currentRange = t.pos.getRangeTo(h);
+            if (currentRange < ch.range) {
+              return { hostile: h, range: currentRange }
+            } else {
+              return ch;
+            }
+          }, { hostile: hostiles[0], range: Infinity });
+
+          t.attack(closestHostile.hostile);
+        } else if (brokenPublicStructures.length > 0 && t.energy > t.energyCapacity / 2) {
+          t.repair(brokenPublicStructures[0]);
+        }
+      })
+
+      links.forEach((l) => {
+        if (storageLink && !storageLink.energy && l.energy === l.energyCapacity) {
+          l.transferEnergy(storageLink)
+        }
+      });
+
+      _.forEach(idleWorkerCreeps, (c) => {
+        if (room.controller) {
+          if (c.upgradeController(room.controller) === ERR_NOT_IN_RANGE) {
+            c.moveTo(room.controller, { visualizePathStyle: { stroke: '#ffffff' } });
+          }
+        }
+      });
+
+      _.forEach(creeps.builder, (c) => {
+        if (constructionSites.length === 0) {
+          c.suicide();
+        } else {
+          recharge(c);
+
+          if (!c.memory.isHarvesting) {
+            // TODO: Remove crappy sort
+            const constructionSite = _.sortBy(constructionSites, (s) => s.pos.x).reverse()[0];
+
+            if (c.build(constructionSite) === ERR_NOT_IN_RANGE) {
+              c.moveTo(constructionSite);
+            }
+          }
+        }
+      });
+
+      function recharge<T extends Creep>(c: AnyCreep, removeFrom?: Creeps<T>) {
+        if (!c.carry.energy) {
+          c.memory.isHarvesting = true;
+        }
+        if (c.memory.isHarvesting) {
+          if (c.carry.energy === c.carryCapacity) {
+            c.memory.isHarvesting = false;
+          } else {
+            if (droppedEnergy.length > 0) {
+              if (c.pickup(droppedEnergy[0]) === ERR_NOT_IN_RANGE) {
+                c.moveTo(droppedEnergy[0], { visualizePathStyle: { stroke: '#ffffff' } });
+              }
+            } else if (tombstones.length > 0) {
+              if (c.withdraw(tombstones[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                c.moveTo(tombstones[0], { visualizePathStyle: { stroke: '#ffffff' } });
+              }
+            } else {
+              const closestContainer = _.sortBy(activeContainers, (s) => c.pos.getRangeTo(s))[0];
+
+              if (storage && storage.store.energy > 0) {
+                if (c.withdraw(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                  c.moveTo(storage, { visualizePathStyle: { stroke: '#ffffff' } });
+                }
+              } else if (storageLink && storageLink.energy > 0) {
+                if (c.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                  c.moveTo(storageLink, { visualizePathStyle: { stroke: '#ffffff' } });
+                }
+              } else if (closestContainer) {
+                if (c.withdraw(closestContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                  c.moveTo(closestContainer, { visualizePathStyle: { stroke: '#ffffff' } });
+                }
+              } else {
+                if (sources.length > 0 && Object.keys(creeps.harvester).length === 0) {
+                  const closestSource = _.sortBy(sources, (x) => c.pos.getRangeTo(x))[0];
+                  if (c.harvest(closestSource) === ERR_NOT_IN_RANGE) {
+                    c.moveTo(closestSource, { visualizePathStyle: { stroke: '#ffffff' } });
+                  }
+                }
+              }
+            }
+            if (removeFrom) {
+              delete idleWorkerCreeps[c.name];
+            }
           }
         }
       }
     }
   });
 });
-
-// Memory functions
 
 function initMemory() {
   if (!Memory.towers) {
@@ -174,48 +257,4 @@ function cleanMissingTowersMemory(towers: Towers) {
       delete Memory.towers[id];
     }
   }
-}
-
-function getCreepsGroupedByRole() {
-  return Object.keys(Game.creeps).reduce<CreepsGroupedByRole>((creeps, creepName) => {
-    creeps[Game.creeps[creepName].memory.role][creepName] = Game.creeps[creepName];
-    return creeps;
-  }, { worker: {}, harvester: {}, roadWorker: {} });
-}
-
-
-// Find functions
-function findTowers(room: Room) {
-  return room.find<StructureTower>(FIND_MY_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_TOWER }).reduce<Towers>((o, t) => ({ ...o, [t.id]: t }), {});
-}
-
-function findContainers(room: Room) {
-  return room.find<StructureContainer>(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_CONTAINER });
-}
-
-function findActiveContainers(room: Room) {
-  return room.find<StructureContainer>(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_CONTAINER && s.store.energy > 0 });
-}
-
-function findRechargeableStructures(room: Room) {
-  return room.find(FIND_MY_STRUCTURES, { filter: (s: AnyEnergyRechargableOwnedStructure) => [STRUCTURE_EXTENSION, STRUCTURE_SPAWN, STRUCTURE_TOWER, STRUCTURE_LAB, STRUCTURE_NUKER].includes(s.structureType) && s.energy < s.energyCapacity });
-}
-
-function findRoads(room: Room) {
-  return room.find(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_ROAD });
-}
-function findBrokenRoads(room: Room) {
-  return room.find(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_ROAD && s.hitsMax > s.hits });
-}
-
-function findBrokenStructures(room: Room) {
-  return room.find(FIND_MY_STRUCTURES, { filter: (s) => s.hitsMax * 0.75 > s.hits });
-}
-
-function findConstructionSites(room: Room) {
-  return room.find(FIND_CONSTRUCTION_SITES);
-}
-
-function findTombstones(room: Room) {
-  return _.sortBy(room.find(FIND_TOMBSTONES, { filter: (t) => t.store.energy > 0 }), (t) => t.ticksToDecay);
 }

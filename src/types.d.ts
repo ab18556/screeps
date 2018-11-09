@@ -5,7 +5,8 @@ declare type Creeps<T> = { [name: string]: T }
 declare type CreepRoles = {
   worker: WorkerCreep;
   harvester: HarvesterCreep;
-  roadWorker: RoadWorkerCreep;
+  carrier: CarrierCreep;
+  builder: BuilderCreep;
 }
 
 declare type AnyCreep = CreepRoles[keyof CreepRoles];
@@ -15,7 +16,8 @@ interface HarvesterCreep extends Creep {
   memory: HarvesterMemory;
 }
 
-interface RoadWorkerCreep extends Creep { }
+interface CarrierCreep extends Creep { }
+interface BuilderCreep extends Creep { }
 
 interface WorkerCreep extends Creep { }
 
@@ -27,25 +29,35 @@ interface SpawnOptions {
   memory?: AnyCreep['memory']
 }
 
-interface HarvesterMemory extends CreepMemory {
-  workMultiplier: number;
-}
-
-interface CreepMemory {
-  role: CreepRole;
-  isHarvesting: boolean;
-}
-
-interface TowerMemory {
-  depleted: boolean;
-}
-
 declare type AnyEnergyRechargableOwnedStructure =
   | StructureExtension
   | StructureLab
   | StructureNuker
   | StructureSpawn
   | StructureTower;
+
+interface HarvesterMemory extends CreepMemory {
+  workMultiplier: number;
+  assignments: {
+    sourceId: string,
+    storeId?: string,
+  }
+}
+
+interface CreepMemory {
+  role: CreepRole;
+  isHarvesting: boolean;
+  room: string;
+}
+
+interface RoomMemory {
+  storageId: string;
+  storageLinkId: string;
+}
+
+interface TowerMemory {
+  depleted: boolean;
+}
 
 interface Memory {
   creeps: { [name: string]: AnyCreep['memory'] };
@@ -54,25 +66,6 @@ interface Memory {
   spawns: { [name: string]: SpawnMemory };
   towers: { [id: string]: TowerMemory }
 }
-
-type Job = {
-  condition: boolean;
-  target?: RoomPosition | { pos: RoomPosition };
-  args?: any[];
-}
-
-type Jobs = {
-  [key in Action]: Job
-};
-
-type RoomCache = {
-  fillableStructures?: AnyOwnedStructure[],
-  buildableStructures?: ConstructionSite<BuildableStructureConstant>[],
-  brokenStructures?: AnyStructure[],
-  sources?: Source[],
-};
-
-type RoomCaches = { [roomName: string]: RoomCache };
 
 interface Dispatch {
   assignments: string[];
