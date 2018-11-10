@@ -223,7 +223,7 @@ function sortByMostEnergizedWorkerCreepFirst(workerCreeps: { [x: string]: Worker
 
 function toggleFlagIsLookingForEnergy(creep: AnyCreep) {
   if (!creep.carry.energy) {
-    creep.memory.isLookingForEnergy;
+    creep.memory.isLookingForEnergy = true;
   }
   else if (creep.carry.energy === creep.carryCapacity) {
     creep.memory.isLookingForEnergy = false;
