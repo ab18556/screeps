@@ -1,4 +1,4 @@
-import { spawnLoop } from "collections/Spawns";
+import { applyCreepSpawningStrategy } from "collections/Spawns";
 import { RoomEntities } from "room";
 import { executeWithClosestCreep } from "taskDispatch";
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -6,20 +6,17 @@ import { ErrorMapper } from "utils/ErrorMapper";
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
-  Memory.progress = Memory.progress > 20000 ? Memory.progress : 20000;
-  Memory.progress++;
-  console.log(Memory.progress)
-
   initMemory();
-  cleanMissinCreepsMemory();
+  cleanMemory();
+
+  incrementWallHitsTarget();
 
   _.forEach(Game.rooms, (room) => {
-    if (['W16N39', 'W15N39'].includes(room.name)) {
+    if (isSimulation() || isClaimedRoom(room)) {
       const roomEntities = new RoomEntities(room);
       const {
         creeps,
         towers,
-        sources,
         storage,
         rechargeableTowers,
         rechargeableSpawnRelatedStructures,
@@ -31,17 +28,27 @@ export const loop = ErrorMapper.wrapLoop(() => {
         constructionSites,
         hostiles,
         links,
-        droppedEnergy,
-        tombstones,
       } = roomEntities;
       const idleWorkerCreeps = { ...creeps.worker };
 
-      cleanMissingTowersMemory(towers);
+      const numberOfWorkers = Object.keys(creeps.worker).length;
+      const numberOfHarvesters = Object.keys(creeps.harvester).length;
+      const numberOfCarriers = Object.keys(creeps.carrier).length;
+      const numberOfBuilders = Object.keys(creeps.builder).length;
+      const idleSpawn = applyFindIdleSpawnStrategy(roomEntities.spawns, Game.spawns);
 
-      // Spawning Creeps
-      spawnLoop(creeps, roomEntities);
+      if (idleSpawn) {
+        applyCreepSpawningStrategy(
+          roomEntities,
+          numberOfWorkers,
+          numberOfHarvesters,
+          numberOfCarriers,
+          numberOfBuilders,
+          idleSpawn,
+        );
+      }
 
-      _.forEach(_.sortBy(idleWorkerCreeps, (c) => c.carryCapacity - c.carry.energy), (c) => recharge(c, idleWorkerCreeps));
+      rechargeWorkerCreeps(idleWorkerCreeps, roomEntities);
 
       // Harvesters loop
       Object.keys(creeps.harvester).forEach((h, i) => {
@@ -85,15 +92,15 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
       _.forEach(creeps.carrier, (c) => {
         if (!c.carry.energy || (storageLink && c.carryCapacity - c.carry.energy > storageLink.energy)) {
-          c.memory.isHarvesting = true;
+          c.memory.isLookingForEnergy = true;
         }
 
-        if (c.memory.isHarvesting) {
+        if (c.memory.isLookingForEnergy) {
           if (storageLink && storageLink.energy > 0) {
             if (c.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
               c.moveTo(storageLink);
             } else {
-              c.memory.isHarvesting = false;
+              c.memory.isLookingForEnergy = false;
             }
           } else if (activeContainers.length > 0) {
 
@@ -103,12 +110,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
               if (c.withdraw(largestEnergySource, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
                 c.moveTo(largestEnergySource);
               } else {
-                c.memory.isHarvesting = false;
+                c.memory.isLookingForEnergy = false;
               }
             }
           }
           else {
-            c.memory.isHarvesting = false;
+            c.memory.isLookingForEnergy = false;
           }
         } else {
           if (rechargeableSpawnRelatedStructures.length > 0) {
@@ -174,9 +181,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
         if (constructionSites.length === 0) {
           c.suicide();
         } else {
-          recharge(c);
+          toggleFlagIsLookingForEnergy(c)
+          if (c.memory.isLookingForEnergy) {
+            applyRechargeStrategy(c, roomEntities);
+          }
 
-          if (!c.memory.isHarvesting) {
+          if (!c.memory.isLookingForEnergy) {
             // TODO: Remove crappy sort
             const constructionSite = _.sortBy(constructionSites, (s) => s.pos.x).reverse()[0];
 
@@ -186,64 +196,137 @@ export const loop = ErrorMapper.wrapLoop(() => {
           }
         }
       });
-
-      function recharge<T extends Creep>(c: AnyCreep, removeFrom?: Creeps<T>) {
-        if (!c.carry.energy) {
-          c.memory.isHarvesting = true;
-        }
-        if (c.memory.isHarvesting) {
-          if (c.carry.energy === c.carryCapacity) {
-            c.memory.isHarvesting = false;
-          } else {
-            if (droppedEnergy.length > 0) {
-              if (c.pickup(droppedEnergy[0]) === ERR_NOT_IN_RANGE) {
-                c.moveTo(droppedEnergy[0], { visualizePathStyle: { stroke: '#ffffff' } });
-              }
-            } else if (tombstones.length > 0) {
-              if (c.withdraw(tombstones[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                c.moveTo(tombstones[0], { visualizePathStyle: { stroke: '#ffffff' } });
-              }
-            } else {
-              const closestContainer = _.sortBy(activeContainers, (s) => c.pos.getRangeTo(s))[0];
-
-              if (storage && storage.store.energy > 0) {
-                if (c.withdraw(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                  c.moveTo(storage, { visualizePathStyle: { stroke: '#ffffff' } });
-                }
-              } else if (storageLink && storageLink.energy > 0) {
-                if (c.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                  c.moveTo(storageLink, { visualizePathStyle: { stroke: '#ffffff' } });
-                }
-              } else if (closestContainer) {
-                if (c.withdraw(closestContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                  c.moveTo(closestContainer, { visualizePathStyle: { stroke: '#ffffff' } });
-                }
-              } else {
-                if (sources.length > 0 && Object.keys(creeps.harvester).length === 0) {
-                  const closestSource = _.sortBy(sources, (x) => c.pos.getRangeTo(x))[0];
-                  if (c.harvest(closestSource) === ERR_NOT_IN_RANGE) {
-                    c.moveTo(closestSource, { visualizePathStyle: { stroke: '#ffffff' } });
-                  }
-                }
-              }
-            }
-            if (removeFrom) {
-              delete idleWorkerCreeps[c.name];
-            }
-          }
-        }
-      }
     }
   });
 });
 
-function initMemory() {
-  if (!Memory.towers) {
-    Memory.towers = {};
+function rechargeWorkerCreeps(workerCreeps: { [x: string]: WorkerCreep; }, roomEntities: RoomEntities) {
+  const orderedWorkerCreepsToBeRecharged = optimizeWorkerCreepRechargeOrder(workerCreeps);
+  _.forEach(orderedWorkerCreepsToBeRecharged, (workerCreep) => {
+    toggleFlagIsLookingForEnergy(workerCreep)
+    if (workerCreep.memory.isLookingForEnergy) {
+      applyRechargeStrategy(workerCreep, roomEntities);
+      if (workerCreeps) {
+        delete workerCreeps[workerCreep.name];
+      }
+    }
+  });
+}
+
+function optimizeWorkerCreepRechargeOrder(workerCreeps: { [x: string]: WorkerCreep; }) {
+  return sortByMostEnergizedWorkerCreepFirst(workerCreeps);
+}
+
+function sortByMostEnergizedWorkerCreepFirst(workerCreeps: { [x: string]: WorkerCreep; }) {
+  return _.sortBy(workerCreeps, (c) => c.carryCapacity - c.carry.energy);
+}
+
+function toggleFlagIsLookingForEnergy(creep: AnyCreep) {
+  if (!creep.carry.energy) {
+    creep.memory.isLookingForEnergy;
+  }
+  else if (creep.carry.energy === creep.carryCapacity) {
+    creep.memory.isLookingForEnergy = false;
   }
 }
 
-function cleanMissinCreepsMemory() {
+function applyRechargeStrategy(creep: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, roomEntities: RoomEntities) {
+  const {
+    activeContainers,
+    creeps,
+    looseEnergy,
+    sources,
+    storage,
+    storageLink,
+    tombstones,
+  } = roomEntities;
+
+  if (looseEnergy.length > 0) {
+    pickupLooseEnergy(creep, looseEnergy);
+  }
+  else if (tombstones.length > 0) {
+    lootTombstone(creep, tombstones);
+  }
+  else {
+    const closestContainer = _.sortBy(activeContainers, (s) => creep.pos.getRangeTo(s))[0];
+    if (storage && storage.store.energy > 0) {
+      withdrawEnergyFromStorage(creep, storage);
+    }
+    else if (storageLink && storageLink.energy > 0) {
+      withdrawEnergyFromStorageLink(creep, storageLink);
+    }
+    else if (closestContainer) {
+      withdrawEnergyFromContainer(creep, closestContainer);
+    }
+    else if (sources.length > 0 && Object.keys(creeps.harvester).length === 0) {
+      const closestSource = _.sortBy(sources, (x) => creep.pos.getRangeTo(x))[0];
+      harvestEnergyFromSource(creep, closestSource);
+    }
+  }
+}
+
+function harvestEnergyFromSource(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, closestSource: Source) {
+  if (c.harvest(closestSource) === ERR_NOT_IN_RANGE) {
+    c.moveTo(closestSource, { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function withdrawEnergyFromContainer(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, closestContainer: StructureContainer) {
+  if (c.withdraw(closestContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+    c.moveTo(closestContainer, { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function withdrawEnergyFromStorageLink(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, storageLink: StructureLink) {
+  if (c.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+    c.moveTo(storageLink, { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function withdrawEnergyFromStorage(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, storage: StructureStorage) {
+  if (c.withdraw(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+    c.moveTo(storage, { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function lootTombstone(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, tombstones: Tombstone[]) {
+  if (c.withdraw(tombstones[0], RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+    c.moveTo(tombstones[0], { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function pickupLooseEnergy(c: HarvesterCreep | CarrierCreep | WorkerCreep | BuilderCreep, looseEnergy: Resource<ResourceConstant>[]) {
+  if (c.pickup(looseEnergy[0]) === ERR_NOT_IN_RANGE) {
+    c.moveTo(looseEnergy[0], { visualizePathStyle: { stroke: '#ffffff' } });
+  }
+}
+
+function isClaimedRoom(room: Room): boolean {
+  return ['W16N39', 'W15N39'].includes(room.name);
+}
+
+function applyFindIdleSpawnStrategy(currentRoomSpawns: StructureSpawn[], allSpawns: typeof Game['spawns']) {
+  const currentRoomIdleSpawn = _.find(currentRoomSpawns, (spawn) => spawn.isActive && !spawn.spawning);
+
+  if (currentRoomIdleSpawn) {
+    return currentRoomIdleSpawn;
+  }
+  else {
+    return _.find(allSpawns, (spawn) => spawn.isActive && !spawn.spawning);
+  }
+}
+
+function initMemory() {
+  const MINIMAL_WALL_STRENGTH = 20000;
+
+  Memory.wallStrengthProgression = Memory.wallStrengthProgression > MINIMAL_WALL_STRENGTH ? Memory.wallStrengthProgression : MINIMAL_WALL_STRENGTH;
+}
+
+function cleanMemory() {
+  deleteMissingCreepsFromMemory();
+}
+
+function deleteMissingCreepsFromMemory() {
   for (const name in Memory.creeps) {
     if (!(name in Game.creeps)) {
       delete Memory.creeps[name];
@@ -251,10 +334,12 @@ function cleanMissinCreepsMemory() {
   }
 }
 
-function cleanMissingTowersMemory(towers: Towers) {
-  for (const id in Memory.towers) {
-    if (!towers[id]) {
-      delete Memory.towers[id];
-    }
-  }
+function incrementWallHitsTarget() {
+  Memory.wallHitsTarget++;
+
+  console.log(Memory.wallHitsTarget)
+}
+
+function isSimulation() {
+  return Game.shard.name === 'sim';
 }

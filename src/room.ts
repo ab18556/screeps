@@ -22,7 +22,7 @@ export class RoomEntities {
   public readonly storageLink?: StructureLink;
   public readonly links: StructureLink[];
   public readonly creeps: CreepsGroupedByRole;
-  public readonly droppedEnergy: Array<Resource<ResourceConstant>>;
+  public readonly looseEnergy: Array<Resource<ResourceConstant>>;
 
   public readonly towers: Towers;
 
@@ -50,7 +50,7 @@ export class RoomEntities {
     this.storageLink = this.findStorageLink();
     this.links = this.findLinks();
     this.creeps = this.getCreepsGroupedByRole();
-    this.droppedEnergy = this.findDroppedEnergy();
+    this.looseEnergy = this.findDroppedEnergy();
 
     this.towers = this.findTowers();
   }
@@ -105,7 +105,7 @@ export class RoomEntities {
   }
 
   private findBrokenWalls() {
-    return _.filter<StructureWall>(this.structures as StructureWall[], (s) => (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) && s.hitsMax * 0.75 > s.hits && Math.floor(Memory.progress / 1000) * 1000 > s.hits);
+    return _.filter<StructureWall>(this.structures as StructureWall[], (s) => (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) && s.hitsMax * 0.75 > s.hits && Math.floor(Memory.wallHitsTarget / 1000) * 1000 > s.hits);
   }
 
   private findRechargeableLabs() {

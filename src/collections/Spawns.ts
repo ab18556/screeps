@@ -1,32 +1,59 @@
 import { RoomEntities } from "room";
 
-export function spawnLoop(creeps: CreepsGroupedByRole, roomEntities: RoomEntities) {
-  const { sources, storage, room, spawns } = roomEntities;
+export function applyCreepSpawningStrategy(
+  roomEntities: RoomEntities,
+  numberOfWorkers: number,
+  numberOfHarvesters: number,
+  numberOfCarriers: number,
+  numberOfBuilders: number,
+  spawn: StructureSpawn,
+) {
+  const nextCreepRoleToSpawn = getNextCreepTypeToSpawn(
+    roomEntities,
+    numberOfWorkers,
+    numberOfHarvesters,
+    numberOfCarriers,
+    numberOfBuilders,
+    spawn,
+  );
 
-  if (!spawns[0]) {
-    return;
+  if (nextCreepRoleToSpawn) {
+    spawnCreep(nextCreepRoleToSpawn, spawn, roomEntities.creeps.harvester, roomEntities.sources);
+  }
+}
+
+function getNextCreepTypeToSpawn(
+  roomEntities: RoomEntities,
+  numberOfWorkers: number,
+  numberOfHarvesters: number,
+  numberOfCarriers: number,
+  numberOfBuilders: number,
+  spawn: StructureSpawn,
+): keyof CreepRoles | undefined {
+  const { creeps, sources, storage, room, spawns } = roomEntities;
+
+  // This order is part of the strategy.
+  // We want to prioritize workers over harvester, ..., and builders
+  if (numberOfWorkers < 4) {
+    return 'worker';
+  } else if (numberOfHarvesters < sources.length && (storage || spawns[0].room.find(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_CONTAINER })[0])) {
+    return 'harvester';
+  } else if (numberOfCarriers < 1 && storage) {
+    return 'carrier';
+  } else if (roomEntities.constructionSites.length > 0 && numberOfBuilders < 1) {
+    return 'builder';
   }
 
-  if (Object.keys(creeps.worker).length < 4) {
-    spawnWorker(spawns[0], room);
-  } else if (Object.keys(creeps.harvester).length < sources.length && (storage || spawns[0].room.find(FIND_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_CONTAINER })[0])) {
-    const assignedSources = _.map(creeps.harvester, (s) => s.memory.assignments.sourceId);
-    const source = sources.find((s) => !assignedSources.includes(s.id)) as Source;
-    spawnHarvester(spawns[0], room, source);
-  } else if (Object.keys(creeps.carrier).length < 1 && storage) {
-    spawnCarrier(spawns[0], room);
-  } else if (roomEntities.constructionSites.length > 0 && Object.keys(creeps.builder).length < 1) {
-    spawnBuilder(spawns[0], room);
-  }
+  return undefined;
 }
 
 function spawnWorker(spawn: StructureSpawn, room: Room) {
   const body = [MOVE, CARRY, WORK];
   const upgrade = [MOVE, CARRY, WORK];
   const bodyParts = getBodyParts(body, upgrade, room, 15);
-  spawnCreep(spawn, bodyParts, `Worker${Game.time}`, {
+  doSpawnCreep(spawn, bodyParts, `Worker${Game.time}`, {
     memory: {
-      isHarvesting: true,
+      isLookingForEnergy: true,
       role: 'worker',
       room: room.name,
     }
@@ -42,21 +69,21 @@ function spawnHarvester(spawn: StructureSpawn, room: Room, source: Source) {
       sourceId: source.id,
       storeId: getHarvesterStoreId(source),
     },
-    isHarvesting: true,
+    isLookingForEnergy: true,
     role: 'harvester',
     room: room.name,
     workMultiplier: _.filter(bodyParts, (b) => b === WORK).length,
   }
-  spawnCreep(spawn, bodyParts, `Harvester${Game.time}`, { memory });
+  doSpawnCreep(spawn, bodyParts, `Harvester${Game.time}`, { memory });
 }
 
 function spawnCarrier(spawn: StructureSpawn, room: Room) {
   const body = [MOVE, CARRY, CARRY];
   const upgrade: BodyPartConstant[] = [MOVE, CARRY, CARRY];
   const bodyParts = getBodyParts(body, upgrade, room);
-  spawnCreep(spawn, bodyParts, `Carrier${Game.time}`, {
+  doSpawnCreep(spawn, bodyParts, `Carrier${Game.time}`, {
     memory: {
-      isHarvesting: false,
+      isLookingForEnergy: false,
       role: 'carrier',
       room: room.name,
     }
@@ -67,9 +94,9 @@ function spawnBuilder(spawn: StructureSpawn, room: Room) {
   const body = [MOVE, CARRY, WORK];
   const upgrade: BodyPartConstant[] = [MOVE];
   const bodyParts = getBodyParts(body, upgrade, room, 4);
-  spawnCreep(spawn, bodyParts, `Builder${Game.time}`, {
+  doSpawnCreep(spawn, bodyParts, `Builder${Game.time}`, {
     memory: {
-      isHarvesting: false,
+      isLookingForEnergy: false,
       role: 'builder',
       room: room.name,
     }
@@ -89,6 +116,8 @@ function getBodyParts(body: BodyPartConstant[], bodyUpgrade: BodyPartConstant[],
   let nextUpgradedBody = [...totalBodyParts, bodyUpgrade[nextUpgradeIndex]];
 
 
+  console.log(getBodyPartsCost(nextUpgradedBody));
+  console.log(maxEnergyAvailable);
   while (bodyUpgrade.length > 0 && (!maxParts || nextUpgradedBody.length <= maxParts) && getBodyPartsCost(nextUpgradedBody) <= maxEnergyAvailable) {
     totalBodyParts = [...totalBodyParts, bodyUpgrade[nextUpgradeIndex]];
     nextUpgradeIndex = nextUpgradeIndex < bodyUpgrade.length - 1 ? nextUpgradeIndex + 1 : 0;
@@ -109,7 +138,26 @@ function getHarvesterStoreId(source: Source) {
   return store ? store.id : undefined;
 }
 
-function spawnCreep(spawn: StructureSpawn, body: BodyPartConstant[], name: string, opts?: SpawnOptions) {
+function spawnCreep(creepRole: keyof CreepRoles, spawn: StructureSpawn, harvesters: { [creepName: string]: HarvesterCreep }, sources: Source[]) {
+  switch (creepRole) {
+    case 'builder':
+      spawnBuilder(spawn, spawn.room);
+      break;
+    case 'carrier':
+      spawnCarrier(spawn, spawn.room);
+      break;
+    case 'harvester':
+      const exploitedSources = _.map(harvesters, (s) => s.memory.assignments.sourceId);
+      const source = sources.find((s) => !exploitedSources.includes(s.id)) as Source;
+      spawnHarvester(spawn, spawn.room, source);
+      break;
+    case 'worker':
+      spawnWorker(spawn, spawn.room);
+      break;
+  }
+}
+
+function doSpawnCreep(spawn: StructureSpawn, body: BodyPartConstant[], name: string, opts?: SpawnOptions) {
   if (spawn.spawnCreep(body, name, opts) !== OK) {
     // TODO: Find a way tu use closest spawn instead
     const anyOtherSpawn = _.find(Game.spawns, (s) => s.id !== spawn.id);

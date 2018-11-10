@@ -3,10 +3,10 @@ declare type Action = 'harvest' | 'transfer' | 'repair' | 'build' | 'upgradeCont
 declare type Creeps<T> = { [name: string]: T }
 
 declare type CreepRoles = {
-  worker: WorkerCreep;
-  harvester: HarvesterCreep;
-  carrier: CarrierCreep;
   builder: BuilderCreep;
+  carrier: CarrierCreep;
+  harvester: HarvesterCreep;
+  worker: WorkerCreep;
 }
 
 declare type AnyCreep = CreepRoles[keyof CreepRoles];
@@ -46,7 +46,7 @@ interface HarvesterMemory extends CreepMemory {
 
 interface CreepMemory {
   role: CreepRole;
-  isHarvesting: boolean;
+  isLookingForEnergy: boolean;
   room: string;
 }
 
