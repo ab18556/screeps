@@ -1,5 +1,5 @@
 
-export class RoomEntities {
+export default class RoomEntities {
   public readonly room: Room;
   public readonly spawns: StructureSpawn[];
   public readonly myStructures: AnyOwnedStructure[];
@@ -22,7 +22,7 @@ export class RoomEntities {
   public readonly storageLink?: StructureLink;
   public readonly links: StructureLink[];
   public readonly creeps: CreepsGroupedByRole;
-  public readonly looseEnergy: Array<Resource<ResourceConstant>>;
+  public readonly looseEnergyNodes: Array<Resource<RESOURCE_ENERGY>>;
 
   public readonly towers: Towers;
 
@@ -50,7 +50,7 @@ export class RoomEntities {
     this.storageLink = this.findStorageLink();
     this.links = this.findLinks();
     this.creeps = this.getCreepsGroupedByRole();
-    this.looseEnergy = this.findDroppedEnergy();
+    this.looseEnergyNodes = this.findDroppedEnergy();
 
     this.towers = this.findTowers();
   }
@@ -128,8 +128,8 @@ export class RoomEntities {
     return _.filter(this.myStructures, (s) => s.hitsMax * 0.75 > s.hits && s.structureType !== STRUCTURE_RAMPART);
   }
 
-  private findDroppedEnergy() {
-    return this.room.find(FIND_DROPPED_RESOURCES, { filter: (e => e.pos.x >= 11 && e.pos.x < 47) });
+  private findDroppedEnergy(): Array<Resource<RESOURCE_ENERGY>> {
+    return this.room.find(FIND_DROPPED_RESOURCES, { filter: ((droppedResource) => droppedResource.resourceType === RESOURCE_ENERGY) }) as Array<Resource<RESOURCE_ENERGY>>;
   }
 
   private getCreepsGroupedByRole() {

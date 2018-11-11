@@ -38,7 +38,7 @@ declare type AnyEnergyRechargableOwnedStructure =
 
 interface HarvesterMemory extends CreepMemory {
   workMultiplier: number;
-  assignments: {
+  assignments?: {
     sourceId: string,
     storeId?: string,
   }
@@ -53,6 +53,7 @@ interface CreepMemory {
 interface RoomMemory {
   storageId: string;
   storageLinkId: string;
+  sources: string[];
 }
 
 interface TowerMemory {
@@ -64,7 +65,7 @@ interface Memory {
   flags: { [name: string]: FlagMemory };
   rooms: { [name: string]: RoomMemory };
   spawns: { [name: string]: SpawnMemory };
-  towers: { [id: string]: TowerMemory }
+  towers: { [id: string]: TowerMemory };
 }
 
 interface Dispatch {
