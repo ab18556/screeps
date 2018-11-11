@@ -2,7 +2,7 @@ import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 
 
-export default class CarryStrategy {
+export default class CarryStrategy implements Strategy {
   private storageLink?: StructureLink;
   private activeContainers: StructureContainer[];
   private rechargeableSpawnRelatedStructures: Array<StructureSpawn | StructureExtension>;
@@ -10,8 +10,8 @@ export default class CarryStrategy {
   private storage?: StructureStorage;
 
 
-  constructor({ storageLink, activeContainers, rechargeableSpawnRelatedStructures, rechargeableTowers, storage }: RoomEntities) {
-    this.storageLink = storageLink;
+  constructor({ activeContainers, linkNearToStorage, rechargeableSpawnRelatedStructures, rechargeableTowers, storage }: RoomEntities) {
+    this.storageLink = linkNearToStorage;
     this.activeContainers = activeContainers;
     this.rechargeableSpawnRelatedStructures = rechargeableSpawnRelatedStructures;
     this.rechargeableTowers = rechargeableTowers;
@@ -60,6 +60,10 @@ export default class CarryStrategy {
         this.transferEnergyToStorage(carrierCreep, this.storage);
       }
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private transferEnergyToSpawnRelatedStructure(carrierCreep: CarrierCreep, spawnRelatedStructure: StructureSpawn | StructureExtension) {

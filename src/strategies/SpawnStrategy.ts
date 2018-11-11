@@ -2,7 +2,7 @@ import RoomEntities from "RoomEntities";
 import { SpawnAction } from "SpawnAction";
 
 
-export default class SpawnStrategy {
+export default class SpawnStrategy implements Strategy {
     private creeps: CreepsGroupedByRole;
     private sources: Source[];
     private spawns: StructureSpawn[];
@@ -30,6 +30,10 @@ export default class SpawnStrategy {
                 spawnAction.run();
             }
         }
+    }
+
+    public execute() {
+        throw new Error('Not implemented yet.')
     }
 
     private applyFindIdleSpawnStrategy(currentRoomSpawns: StructureSpawn[]) {

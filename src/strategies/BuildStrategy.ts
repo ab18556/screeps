@@ -2,13 +2,14 @@ import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 import RechargeStrategy from "./RechargeStrategy";
 
-export default class BuildStrategy {
+export default class BuildStrategy implements Strategy {
   private constructionSites: Array<ConstructionSite<BuildableStructureConstant>>;
   private rechargeStrategy: RechargeStrategy;
 
   constructor({ constructionSites }: RoomEntities, rechargeStrategy: RechargeStrategy) {
     this.constructionSites = constructionSites;
     this.rechargeStrategy = rechargeStrategy;
+
   }
 
   public applyTo(builderCreep: BuilderCreep) {
@@ -25,6 +26,10 @@ export default class BuildStrategy {
         this.build(builderCreep, constructionSite);
       }
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private build(builderCreep: BuilderCreep, constructionSite: ConstructionSite<BuildableStructureConstant>) {

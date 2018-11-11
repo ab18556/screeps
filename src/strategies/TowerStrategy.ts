@@ -1,6 +1,6 @@
 import RoomEntities from "RoomEntities";
 
-export default class TowerStrategy {
+export default class TowerStrategy implements Strategy {
   private hostiles: Creep[];
   private brokenRoads: StructureRoad[];
   private brokenWalls: StructureWall[];
@@ -28,5 +28,9 @@ export default class TowerStrategy {
     else if (brokenPublicStructures.length > 0 && tower.energy > tower.energyCapacity / 2) {
       tower.repair(brokenPublicStructures[0]);
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 }

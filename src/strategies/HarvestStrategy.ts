@@ -2,16 +2,16 @@ import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 import RechargeStrategy from "./RechargeStrategy";
 
-export default class HarvestStrategy {
+export default class HarvestStrategy implements Strategy {
   private sources: Source[];
   private harvesterCreeps: { [creepName: string]: HarvesterCreep };
   private links: StructureLink[];
   private containers: StructureContainer[];
 
-  constructor({ sources, creeps: { harvester }, links, containers }: RoomEntities) {
+  constructor({ sources, creeps: { harvester }, linksNearToSources, containers }: RoomEntities) {
     this.sources = sources;
     this.harvesterCreeps = harvester;
-    this.links = links;
+    this.links = linksNearToSources;
     this.containers = containers;
   }
   public applyTo(harvester: HarvesterCreep) {
@@ -37,6 +37,10 @@ export default class HarvestStrategy {
         }
       }
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private getSmallStorageStoredEnergy(smallEnergyStorage: StructureLink | StructureContainer) {

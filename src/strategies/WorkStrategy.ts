@@ -3,7 +3,7 @@ import { executeWithClosestCreep } from "taskDispatch";
 import RechargeStrategy from "./RechargeStrategy";
 
 
-export default class WorkStrategy {
+export default class WorkStrategy implements Strategy {
   private roomEntities: RoomEntities;
   private rechargeableSpawnRelatedStructures: Array<StructureSpawn | StructureExtension>;
   private brokenStructures: AnyOwnedStructure[];
@@ -44,6 +44,10 @@ export default class WorkStrategy {
         this.upgradeController(workerCreep, this.room.controller);
       }
     });
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private rechargeWorkerCreeps(workerCreeps: { [x: string]: WorkerCreep; }, roomEntities: RoomEntities) {

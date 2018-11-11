@@ -78,3 +78,7 @@ interface Task {
 }
 
 type Tasks = Task[];
+
+interface Strategy {
+  execute(): void;
+}

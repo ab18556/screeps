@@ -19,8 +19,8 @@ export default class RoomEntities {
   public readonly hostiles: Creep[];
   public readonly sources: Source[];
   public readonly storage?: StructureStorage;
-  public readonly storageLink?: StructureLink;
-  public readonly links: StructureLink[];
+  public readonly linkNearToStorage?: StructureLink;
+  public readonly linksNearToSources: StructureLink[];
   public readonly creeps: CreepsGroupedByRole;
   public readonly looseEnergyNodes: Array<Resource<RESOURCE_ENERGY>>;
 
@@ -47,8 +47,8 @@ export default class RoomEntities {
     this.brokenWalls = this.findBrokenWalls();
     this.hostiles = this.findHostiles();
     this.storage = this.findStorage();
-    this.storageLink = this.findStorageLink();
-    this.links = this.findLinks();
+    this.linkNearToStorage = this.findLinkNearToStorage();
+    this.linksNearToSources = this.findLinksNearToSources();
     this.creeps = this.getCreepsGroupedByRole();
     this.looseEnergyNodes = this.findDroppedEnergy();
 
@@ -154,7 +154,7 @@ export default class RoomEntities {
     return storage;
   }
 
-  private findStorageLink() {
+  private findLinkNearToStorage() {
     const storage = this.findStorage();
 
     if (!storage) {
@@ -173,8 +173,9 @@ export default class RoomEntities {
     return storageLink;
   }
 
-  private findLinks() {
-    const storageLink = this.storageLink;
+  private findLinksNearToSources() {
+    // todo: just search links nearTo sources instead of finding the ones that are not near to storage
+    const storageLink = this.linkNearToStorage;
     const storageLinkId = (storageLink && storageLink.id);
     return _.filter<StructureLink>(this.structures as StructureLink[], (s) => s.structureType === STRUCTURE_LINK && s.id !== storageLinkId);
   }

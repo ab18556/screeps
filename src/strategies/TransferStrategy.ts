@@ -1,7 +1,7 @@
 import RoomEntities from "RoomEntities";
 
 
-export default class TransferStrategy {
+export default class TransferStrategy implements Strategy {
   private storage?: StructureStorage;
 
   constructor({ storage }: RoomEntities) {
@@ -23,6 +23,10 @@ export default class TransferStrategy {
         }
       });
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private creepCarriesSomethingElseThanEnergy(creep: Creep) {

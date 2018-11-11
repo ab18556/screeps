@@ -1,7 +1,7 @@
 import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 
-export default class RechargeStrategy {
+export default class RechargeStrategy implements Strategy {
   private looseEnergyNodes: Array<Resource<RESOURCE_ENERGY>>;
   private tombstones: Tombstone[];
   private activeContainers: StructureContainer[];
@@ -10,12 +10,12 @@ export default class RechargeStrategy {
   private sources: Source[];
   private harvesterCreeps: { [creepName: string]: HarvesterCreep };
 
-  constructor({ looseEnergyNodes, tombstones, activeContainers, storage, storageLink, sources, creeps: { harvester } }: RoomEntities) {
+  constructor({ looseEnergyNodes, tombstones, activeContainers, storage, linkNearToStorage, sources, creeps: { harvester } }: RoomEntities) {
     this.looseEnergyNodes = looseEnergyNodes;
     this.tombstones = tombstones;
     this.activeContainers = activeContainers;
     this.storage = storage;
-    this.storageLink = storageLink;
+    this.storageLink = linkNearToStorage;
     this.sources = sources;
     this.harvesterCreeps = harvester;
   }
@@ -43,6 +43,10 @@ export default class RechargeStrategy {
       RechargeStrategy.harvestEnergyFromSource(creep, closestSource);
     }
 
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private pickupLooseEnergy(creep: AnyCreep, looseEnergyNode: Resource<RESOURCE_ENERGY>) {

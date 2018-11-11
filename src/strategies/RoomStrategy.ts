@@ -1,19 +1,19 @@
-import RoomEntities from "RoomEntities";
 import BuildStrategy from "./BuildStrategy";
 import CarryStrategy from "./CarryStrategy";
+import EnergyTeleportationStrategy from "./EnergyTeleportationStrategy";
 import HarvestStrategy from "./HarvestStrategy";
-import LinkStrategy from "./LinkStrategy";
 import RechargeStrategy from "./RechargeStrategy";
 import SpawnStrategy from "./SpawnStrategy";
 import TowerStrategy from "./TowerStrategy";
 import TransferStrategy from "./TransferStrategy";
 import WorkStrategy from "./WorkStrategy";
+import RoomEntities from "RoomEntities";
 
-export default class RoomStrategy {
+export default class RoomStrategy implements Strategy {
   public applyTo(room: Room) {
     if (this.isSimulation() || this.isClaimedRoom(room)) {
       const roomEntities = new RoomEntities(room);
-      const { creeps, towers, links, spawns } = roomEntities;
+      const { creeps, towers, linksNearToSources, spawns } = roomEntities;
 
       const rechargeStrategy = new RechargeStrategy(roomEntities);
       const workStrategy = new WorkStrategy(roomEntities, rechargeStrategy);
@@ -22,7 +22,7 @@ export default class RoomStrategy {
       const harvestStrategy = new HarvestStrategy(roomEntities);
       const transferStrategy = new TransferStrategy(roomEntities);
       const towerStrategy = new TowerStrategy(roomEntities);
-      const linkStrategy = new LinkStrategy(roomEntities);
+      const energyTeleportationStrategy = new EnergyTeleportationStrategy(roomEntities);
       const spawnStrategy = new SpawnStrategy(roomEntities);
 
       spawnStrategy.applyTo(spawns[0]);
@@ -35,8 +35,12 @@ export default class RoomStrategy {
       _.forEach(Game.creeps, (creep) => transferStrategy.applyTo(creep));
 
       _.forEach(towers, (tower) => towerStrategy.applyTo(tower));
-      _.forEach(links, (link) => linkStrategy.applyTo(link));
+      energyTeleportationStrategy.execute();
     }
+  }
+
+  public execute() {
+    throw new Error('Not implemented yet.')
   }
 
   private isSimulation() {
