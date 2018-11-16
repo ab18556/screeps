@@ -20,7 +20,7 @@ export default class HarvestStrategy implements Strategy {
       const amountHarvestedPerTick = harvester.memory.workMultiplier * 2;
       const softCapacity = Math.floor(harvester.carryCapacity / amountHarvestedPerTick) * amountHarvestedPerTick;
       const sources = _.filter(this.sources, (s) => !_.some(this.harvesterCreeps, (h) => h.name !== harvester.name && h.pos.isNearTo(s)))
-      const source = _.find(sources, (s) => harvester.pos.isNearTo(s)) || harvester.pos.findClosestByPath(sources);
+      const source = _.find(sources, (s) => harvester.pos.isNearTo(s)) || harvester.pos.findClosestByPath(sources) || sources[0];
       if (source) {
         const smallEnergyStorage = PositionHelpers.getClosestToPosition([...this.sourceAdjacentLinks, ...this.containers], source.pos);
         if (smallEnergyStorage) {
