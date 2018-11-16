@@ -9,7 +9,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
   incrementWallHitsTarget();
   const roomStrategy = new RoomStrategy();
-  _.forEach(Game.rooms, (room) => roomStrategy.applyTo(room));
+  roomStrategy.execute();
 });
 
 function initMemory() {

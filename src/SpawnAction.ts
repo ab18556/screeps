@@ -32,9 +32,9 @@ export class SpawnAction {
     const bodyParts = this.getBodyParts(body, upgrade, 15);
     return this.doSpawnCreep(bodyParts, `Worker${Game.time}`, {
       memory: {
-        isLookingForEnergy: true,
         role: 'worker',
         room: this.targetRoom.name,
+        status: 'lookingForEnergy',
       }
     });
   }
@@ -44,9 +44,9 @@ export class SpawnAction {
     const upgrade = [WORK, MOVE, WORK];
     const bodyParts = this.getBodyParts(body, upgrade, 9);
     const memory: HarvesterMemory = {
-      isLookingForEnergy: true,
       role: 'harvester',
       room: this.targetRoom.name,
+      status: 'lookingForEnergy',
       workMultiplier: _.filter(bodyParts, (b) => b === WORK).length,
     }
     return this.doSpawnCreep(bodyParts, `Harvester${Game.time}`, { memory });
@@ -58,9 +58,9 @@ export class SpawnAction {
     const bodyParts = this.getBodyParts(body, upgrade);
     return this.doSpawnCreep(bodyParts, `Carrier${Game.time}`, {
       memory: {
-        isLookingForEnergy: false,
         role: 'carrier',
         room: this.targetRoom.name,
+        status: 'lookingForEnergy',
       }
     });
   }
@@ -71,9 +71,9 @@ export class SpawnAction {
     const bodyParts = this.getBodyParts(body, upgrade, 4);
     return this.doSpawnCreep(bodyParts, `Builder${Game.time}`, {
       memory: {
-        isLookingForEnergy: false,
         role: 'builder',
         room: this.targetRoom.name,
+        status: 'idle',
       }
     });
   }

@@ -3,43 +3,45 @@ import { executeWithClosestCreep } from "taskDispatch";
 import RechargeStrategy from "./RechargeStrategy";
 
 
-export default class WorkStrategy {
+export default class WorkStrategy implements Strategy {
   private roomEntities: RoomEntities;
   private rechargeableSpawnRelatedStructures: Array<StructureSpawn | StructureExtension>;
   private brokenStructures: AnyOwnedStructure[];
-  private creeps: CreepsGroupedByRole;
+  private builderCreeps: CreepsGroupedByRole['builder'];
+  private carrierCreeps: CreepsGroupedByRole['carrier'];
   private rechargeableTowers: StructureTower[];
   private constructionSites: Array<ConstructionSite<BuildableStructureConstant>>;
   private room: Room;
   private rechargeStrategy: RechargeStrategy;
+  private idleWorkerCreeps: CreepsGroupedByRole['worker'];
 
   constructor(roomEntities: RoomEntities, rechargeStrategy: RechargeStrategy) {
-    const { rechargeableSpawnRelatedStructures, brokenStructures, creeps, rechargeableTowers, constructionSites, room } = roomEntities;
+    const { rechargeableSpawnRelatedStructures, brokenStructures, creepsGroupedByRole: { builder, carrier, worker }, rechargeableTowers, constructionSites, room } = roomEntities;
 
     this.roomEntities = roomEntities;
     this.rechargeableSpawnRelatedStructures = rechargeableSpawnRelatedStructures;
     this.brokenStructures = brokenStructures;
-    this.creeps = creeps;
+    this.builderCreeps = builder;
+    this.carrierCreeps = carrier;
     this.rechargeableTowers = rechargeableTowers;
     this.constructionSites = constructionSites;
     this.room = room;
     this.rechargeStrategy = rechargeStrategy;
+    this.idleWorkerCreeps = { ...worker };
   }
 
-  public apply(idleWorkerCreeps: { [x: string]: WorkerCreep; }) {
-    this.rechargeWorkerCreeps(idleWorkerCreeps, this.roomEntities);
-    executeWithClosestCreep('transfer', this.rechargeableSpawnRelatedStructures, idleWorkerCreeps, [RESOURCE_ENERGY]);
-    executeWithClosestCreep('repair', this.brokenStructures, idleWorkerCreeps);
-
-    if (_.size(this.creeps.carrier) === 0) {
-      executeWithClosestCreep('transfer', this.rechargeableTowers, idleWorkerCreeps, [RESOURCE_ENERGY]);
+  public execute() {
+    this.rechargeWorkerCreeps(this.idleWorkerCreeps, this.roomEntities);
+    executeWithClosestCreep('transfer', this.rechargeableSpawnRelatedStructures, this.idleWorkerCreeps, [RESOURCE_ENERGY]);
+    executeWithClosestCreep('repair', this.brokenStructures, this.idleWorkerCreeps);
+    if (_.size(this.carrierCreeps) === 0) {
+      executeWithClosestCreep('transfer', this.rechargeableTowers, this.idleWorkerCreeps, [RESOURCE_ENERGY]);
     }
-
-    if (this.constructionSites.length > 0 && Object.keys(this.creeps.builder).length === 0) {
+    if (this.constructionSites.length > 0 && _.size(this.builderCreeps) === 0) {
       // TODO: Remove crappy sort
-      executeWithClosestCreep('build', [_.sortBy(this.constructionSites, (s) => s.pos.x).reverse()[0]], idleWorkerCreeps);
+      executeWithClosestCreep('build', [_.sortBy(this.constructionSites, (s) => s.pos.x).reverse()[0]], this.idleWorkerCreeps);
     }
-    _.forEach(idleWorkerCreeps, (workerCreep) => {
+    _.forEach(this.idleWorkerCreeps, (workerCreep) => {
       if (this.room.controller) {
         this.upgradeController(workerCreep, this.room.controller);
       }
@@ -52,7 +54,7 @@ export default class WorkStrategy {
     _.forEach(orderedWorkerCreepsToBeRecharged, (workerCreep) => {
       RechargeStrategy.toggleFlagIsLookingForEnergy(workerCreep);
 
-      if (workerCreep.memory.isLookingForEnergy) {
+      if (workerCreep.memory.status === 'lookingForEnergy') {
         this.rechargeStrategy.applyTo(workerCreep);
         if (workerCreeps) {
           delete workerCreeps[workerCreep.name];

@@ -2,41 +2,43 @@ import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 import RechargeStrategy from "./RechargeStrategy";
 
-export default class HarvestStrategy {
+export default class HarvestStrategy implements Strategy {
   private sources: Source[];
   private harvesterCreeps: { [creepName: string]: HarvesterCreep };
-  private links: StructureLink[];
+  private sourceAdjacentLinks: StructureLink[];
   private containers: StructureContainer[];
 
-  constructor({ sources, creeps: { harvester }, links, containers }: RoomEntities) {
+  constructor({ sources, creepsGroupedByRole: { harvester }, sourceAdjacentLinks, containers }: RoomEntities) {
     this.sources = sources;
     this.harvesterCreeps = harvester;
-    this.links = links;
+    this.sourceAdjacentLinks = sourceAdjacentLinks;
     this.containers = containers;
   }
-  public applyTo(harvester: HarvesterCreep) {
-    const amountHarvestedPerTick = harvester.memory.workMultiplier * 2;
-    const softCapacity = Math.floor(harvester.carryCapacity / amountHarvestedPerTick) * amountHarvestedPerTick;
-    const source = _.find(this.sources, (s) => !_.some(this.harvesterCreeps, (h) => h.name !== harvester.name && h.pos.isNearTo(s)));
 
-    if (source) {
-      const smallEnergyStorage = PositionHelpers.getClosestToPosition([...this.links, ...this.containers], source.pos);
-
-      if (smallEnergyStorage) {
-        if (harvester.carry.energy > amountHarvestedPerTick * 2) {
-          const capacity = this.getSmallEnergyStorageCapacity(smallEnergyStorage);
-          const energy = this.getSmallStorageStoredEnergy(smallEnergyStorage);
-          const amount = Math.min(capacity - energy, harvester.carry.energy);
-          this.transferEnergyToSmallStorage(harvester, smallEnergyStorage, amount);
-        }
-        if (smallEnergyStorage.hits < smallEnergyStorage.hitsMax && harvester.carry.energy) {
-          this.repairSmallStorage(harvester, smallEnergyStorage);
-        }
-        if (harvester.carry.energy < softCapacity) {
-          RechargeStrategy.harvestEnergyFromSource(harvester, source);
+  public execute() {
+    _.forEach(this.harvesterCreeps, (harvester) => {
+      const amountHarvestedPerTick = harvester.memory.workMultiplier * 2;
+      const softCapacity = Math.floor(harvester.carryCapacity / amountHarvestedPerTick) * amountHarvestedPerTick;
+      const sources = _.filter(this.sources, (s) => !_.some(this.harvesterCreeps, (h) => h.name !== harvester.name && h.pos.isNearTo(s)))
+      const source = _.find(sources, (s) => harvester.pos.isNearTo(s)) || harvester.pos.findClosestByPath(sources);
+      if (source) {
+        const smallEnergyStorage = PositionHelpers.getClosestToPosition([...this.sourceAdjacentLinks, ...this.containers], source.pos);
+        if (smallEnergyStorage) {
+          if (harvester.carry.energy > amountHarvestedPerTick * 2) {
+            const capacity = this.getSmallEnergyStorageCapacity(smallEnergyStorage);
+            const energy = this.getSmallStorageStoredEnergy(smallEnergyStorage);
+            const amount = Math.min(capacity - energy, harvester.carry.energy);
+            this.transferEnergyToSmallStorage(harvester, smallEnergyStorage, amount);
+          }
+          if (smallEnergyStorage.hits < smallEnergyStorage.hitsMax && harvester.carry.energy) {
+            this.repairSmallStorage(harvester, smallEnergyStorage);
+          }
+          if (harvester.carry.energy < softCapacity) {
+            RechargeStrategy.harvestEnergyFromSource(harvester, source);
+          }
         }
       }
-    }
+    });
   }
 
   private getSmallStorageStoredEnergy(smallEnergyStorage: StructureLink | StructureContainer) {

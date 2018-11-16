@@ -1,35 +1,36 @@
-declare type Action = 'harvest' | 'transfer' | 'repair' | 'build' | 'upgradeController';
+type Action = 'harvest' | 'transfer' | 'repair' | 'build' | 'upgradeController';
 
-declare type Creeps<T> = { [name: string]: T }
+type Status = 'dying' | 'lookingForEnergy' | 'idle' | 'working';
 
-declare type CreepRoles = {
+interface Creeps<T = Creep> {
+  [name: string]: T;
+}
+
+interface CreepRoles {
   builder: BuilderCreep;
   carrier: CarrierCreep;
   harvester: HarvesterCreep;
   worker: WorkerCreep;
 }
 
-declare type AnyCreep = CreepRoles[keyof CreepRoles];
-declare type CreepRole = keyof CreepRoles;
+type BuilderCreep = Creep;
+type CarrierCreep = Creep
+type WorkerCreep = Creep;
+
+type AnyCreep = CreepRoles[keyof CreepRoles];
+type CreepRole = keyof CreepRoles;
 
 interface HarvesterCreep extends Creep {
   memory: HarvesterMemory;
 }
 
-interface CarrierCreep extends Creep { }
-interface BuilderCreep extends Creep { }
+type CreepsGroupedByRole = { [P in keyof CreepRoles]: { [creepName: string]: CreepRoles[P] } };
 
-interface WorkerCreep extends Creep { }
-
-declare type CreepsGroupedByRole = { [P in keyof CreepRoles]: { [creepName: string]: CreepRoles[P] } };
-
-declare type Towers = { [id: string]: StructureTower };
-
-interface SpawnOptions {
-  memory?: AnyCreep['memory']
+interface Towers {
+  [id: string]: StructureTower;
 }
 
-declare type AnyEnergyRechargableOwnedStructure =
+type AnyEnergyRechargableOwnedStructure =
   | StructureExtension
   | StructureLab
   | StructureNuker
@@ -44,15 +45,17 @@ interface HarvesterMemory extends CreepMemory {
   }
 }
 
-interface CreepMemory {
+
+interface CreepMemory extends Pick<CreepRoles[keyof CreepRoles]['memory'], keyof CreepRoles[keyof CreepRoles]['memory']> {
   role: CreepRole;
-  isLookingForEnergy: boolean;
   room: string;
+  status: Status;
 }
+
 
 interface RoomMemory {
   storageId: string;
-  storageLinkId: string;
+  storageAdjacentLinkId: string;
   sources: string[];
 }
 
@@ -61,7 +64,7 @@ interface TowerMemory {
 }
 
 interface Memory {
-  creeps: { [name: string]: AnyCreep['memory'] };
+  creeps: { [name: string]: CreepMemory };
   flags: { [name: string]: FlagMemory };
   rooms: { [name: string]: RoomMemory };
   spawns: { [name: string]: SpawnMemory };
@@ -78,3 +81,7 @@ interface Task {
 }
 
 type Tasks = Task[];
+
+interface Strategy {
+  execute(): void;
+}
