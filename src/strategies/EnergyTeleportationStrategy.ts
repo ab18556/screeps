@@ -1,21 +1,21 @@
 import RoomEntities from "RoomEntities";
 
 export default class EnergyTeleportationStrategy implements Strategy {
-  private linkNearToStorage?: StructureLink;
-  private linksNearToSources: StructureLink[];
+  private storageAdjacentLink?: StructureLink;
+  private sourceAdjacentLinks: StructureLink[];
 
-  constructor({ linkNearToStorage, linksNearToSources }: RoomEntities) {
-    this.linkNearToStorage = linkNearToStorage;
-    this.linksNearToSources = linksNearToSources;
+  constructor({ storageAdjacentLink, sourceAdjacentLinks }: RoomEntities) {
+    this.storageAdjacentLink = storageAdjacentLink;
+    this.sourceAdjacentLinks = sourceAdjacentLinks;
   }
 
   public execute() {
-    const linkNearToStorage = this.linkNearToStorage;
+    const storageAdjacentLink = this.storageAdjacentLink;
 
-    if (linkNearToStorage) {
-      this.linksNearToSources.forEach((link) => {
+    if (storageAdjacentLink) {
+      this.sourceAdjacentLinks.forEach((link) => {
         if (link.energy === link.energyCapacity) {
-          link.transferEnergy(linkNearToStorage);
+          link.transferEnergy(storageAdjacentLink);
         }
       });
     }

@@ -19,9 +19,10 @@ export default class RoomEntities {
   public readonly hostiles: Creep[];
   public readonly sources: Source[];
   public readonly storage?: StructureStorage;
-  public readonly linkNearToStorage?: StructureLink;
-  public readonly linksNearToSources: StructureLink[];
-  public readonly creeps: CreepsGroupedByRole;
+  public readonly storageAdjacentLink?: StructureLink;
+  public readonly sourceAdjacentLinks: StructureLink[];
+  public readonly creeps: Creeps;
+  public readonly creepsGroupedByRole: CreepsGroupedByRole;
   public readonly looseEnergyNodes: Array<Resource<RESOURCE_ENERGY>>;
 
   public readonly towers: Towers;
@@ -47,9 +48,10 @@ export default class RoomEntities {
     this.brokenWalls = this.findBrokenWalls();
     this.hostiles = this.findHostiles();
     this.storage = this.findStorage();
-    this.linkNearToStorage = this.findLinkNearToStorage();
-    this.linksNearToSources = this.findLinksNearToSources();
-    this.creeps = this.getCreepsGroupedByRole();
+    this.storageAdjacentLink = this.findStorageAdjacentLink();
+    this.sourceAdjacentLinks = this.findSourceAdjacentLinks();
+    this.creeps = this.getAllCreepsInThisRoom();
+    this.creepsGroupedByRole = this.getCreepsGroupedByRole();
     this.looseEnergyNodes = this.findDroppedEnergy();
 
     this.towers = this.findTowers();
@@ -132,12 +134,22 @@ export default class RoomEntities {
     return this.room.find(FIND_DROPPED_RESOURCES, { filter: ((droppedResource) => droppedResource.resourceType === RESOURCE_ENERGY) }) as Array<Resource<RESOURCE_ENERGY>>;
   }
 
-  private getCreepsGroupedByRole() {
-    return Object.keys(Game.creeps).reduce<CreepsGroupedByRole>((creeps, creepName) => {
+  private getAllCreepsInThisRoom() {
+    return Object.keys(Game.creeps).reduce<Creeps>((creeps, creepName) => {
       if (Game.creeps[creepName] && Game.creeps[creepName].memory.room === this.room.name) {
-        creeps[Game.creeps[creepName].memory.role][creepName] = Game.creeps[creepName];
+        creeps[creepName] = Game.creeps[creepName];
       }
       return creeps;
+    }, {});
+  }
+
+  private getCreepsGroupedByRole() {
+    return Object.keys(this.creeps).reduce<CreepsGroupedByRole>((creepsGroupedByRole, creepName) => {
+
+      const creep = this.creeps[creepName];
+      const creepRole = creep.memory.role;
+      creepsGroupedByRole[creepRole][creepName] = creep;
+      return creepsGroupedByRole;
     }, { worker: {}, harvester: {}, carrier: {}, builder: {} });
   }
 
@@ -154,30 +166,31 @@ export default class RoomEntities {
     return storage;
   }
 
-  private findLinkNearToStorage() {
+  private findStorageAdjacentLink() {
     const storage = this.findStorage();
 
     if (!storage) {
       return;
     }
 
-    let storageLink = Game.getObjectById<StructureLink>(this.room.memory.storageLinkId);
+    let storageAdjacentLink = Game.getObjectById<StructureLink>(this.room.memory.storageAdjacentLinkId);
 
-    if (!storageLink) {
-      storageLink = storage.pos.findInRange<StructureLink>(FIND_MY_STRUCTURES, 1, { filter: (s) => s.structureType === STRUCTURE_LINK })[0];
-      if (storageLink) {
-        this.room.memory.storageLinkId = storageLink.id;
+    if (!storageAdjacentLink) {
+      storageAdjacentLink = storage.pos.findInRange<StructureLink>(FIND_MY_STRUCTURES, 1, { filter: (s) => s.structureType === STRUCTURE_LINK })[0];
+      if (storageAdjacentLink) {
+        this.room.memory.storageAdjacentLinkId = storageAdjacentLink.id;
       }
     }
 
-    return storageLink;
+    return storageAdjacentLink;
   }
 
-  private findLinksNearToSources() {
-    // todo: just search links nearTo sources instead of finding the ones that are not near to storage
-    const storageLink = this.linkNearToStorage;
-    const storageLinkId = (storageLink && storageLink.id);
-    return _.filter<StructureLink>(this.structures as StructureLink[], (s) => s.structureType === STRUCTURE_LINK && s.id !== storageLinkId);
+  private findSourceAdjacentLinks() {
+    return _.filter<StructureLink>(this.structures as StructureLink[], (structure) => structure.structureType === STRUCTURE_LINK && !this.isNearToStorage(structure) && this.isNearToSomeSource(structure));
+  }
+
+  private isNearToStorage(structure: StructureLink) {
+    return this.storage && structure.pos.isNearTo(this.storage);
   }
 
   private entityListToDictionary<T extends { id: string }>(list: T[]) {
@@ -186,7 +199,8 @@ export default class RoomEntities {
       return { ...o, [t.id]: t }
     }, {});
   }
+
+  private isNearToSomeSource(target: RoomPosition | { pos: RoomPosition }) {
+    return _.some(this.sources, (source) => source.pos.isNearTo(target));
+  }
 }
-
-
-

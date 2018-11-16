@@ -5,36 +5,50 @@ import RechargeStrategy from "./RechargeStrategy";
 export default class BuildStrategy implements Strategy {
   private constructionSites: Array<ConstructionSite<BuildableStructureConstant>>;
   private rechargeStrategy: RechargeStrategy;
+  private builderCreeps: CreepsGroupedByRole['builder'];
 
-  constructor({ constructionSites }: RoomEntities, rechargeStrategy: RechargeStrategy) {
+  constructor({ constructionSites, creepsGroupedByRole: { builder } }: RoomEntities, rechargeStrategy: RechargeStrategy) {
     this.constructionSites = constructionSites;
     this.rechargeStrategy = rechargeStrategy;
-
-  }
-
-  public applyTo(builderCreep: BuilderCreep) {
-    if (this.constructionSites.length === 0) {
-      builderCreep.suicide();
-    }
-    else {
-      RechargeStrategy.toggleFlagIsLookingForEnergy(builderCreep);
-      if (builderCreep.memory.isLookingForEnergy) {
-        this.rechargeStrategy.applyTo(builderCreep);
-      }
-      if (!builderCreep.memory.isLookingForEnergy) {
-        const constructionSite = PositionHelpers.orderByRangeToPosition(this.constructionSites, builderCreep.pos)[0];
-        this.build(builderCreep, constructionSite);
-      }
-    }
+    this.builderCreeps = builder;
   }
 
   public execute() {
-    throw new Error('Not implemented yet.')
+    if (this.constructionSites.length === 0) {
+      this.killUselessBuilderCreeps();
+    }
+    else {
+      _.forEach(this.builderCreeps, (builderCreep) => {
+        RechargeStrategy.toggleFlagIsLookingForEnergy(builderCreep);
+
+        switch (builderCreep.memory.status) {
+          case 'lookingForEnergy':
+            this.rechargeStrategy.applyTo(builderCreep);
+            break;
+          case 'idle':
+          case 'working':
+            this.tellBuilderCreepToWork(builderCreep);
+            break;
+        }
+      });
+    }
   }
 
-  private build(builderCreep: BuilderCreep, constructionSite: ConstructionSite<BuildableStructureConstant>) {
-    if (builderCreep.build(constructionSite) === ERR_NOT_IN_RANGE) {
-      builderCreep.moveTo(constructionSite);
+  private getClosestConstructionSite(builderCreep: Creep) {
+    return PositionHelpers.orderByRangeToPosition(this.constructionSites, builderCreep.pos)[0];
+  }
+
+  private killUselessBuilderCreeps() {
+    _.forEach(this.builderCreeps, (builderCreep) => {
+      builderCreep.suicide();
+      builderCreep.memory.status = 'dying';
+    });
+  }
+
+  private tellBuilderCreepToWork(builderCreep: BuilderCreep) {
+    const closestConstructionSite = this.getClosestConstructionSite(builderCreep);
+    if (builderCreep.build(closestConstructionSite) === ERR_NOT_IN_RANGE) {
+      builderCreep.moveTo(closestConstructionSite);
     }
   }
 }

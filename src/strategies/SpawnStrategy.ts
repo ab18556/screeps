@@ -3,7 +3,10 @@ import { SpawnAction } from "SpawnAction";
 
 
 export default class SpawnStrategy implements Strategy {
-    private creeps: CreepsGroupedByRole;
+    private workerCreeps: CreepsGroupedByRole['worker'];
+    private harvesterCreeps: CreepsGroupedByRole['harvester'];
+    private carrierCreeps: CreepsGroupedByRole['carrier'];
+    private builderCreeps: CreepsGroupedByRole['builder'];
     private sources: Source[];
     private spawns: StructureSpawn[];
     private storage?: StructureStorage;
@@ -11,8 +14,11 @@ export default class SpawnStrategy implements Strategy {
     private containers: StructureContainer[];
     private room: Room;
 
-    constructor({ creeps, sources, spawns, storage, constructionSites, containers, room }: RoomEntities) {
-        this.creeps = creeps;
+    constructor({ creepsGroupedByRole: { worker, harvester, carrier, builder }, sources, spawns, storage, constructionSites, containers, room }: RoomEntities) {
+        this.workerCreeps = worker;
+        this.harvesterCreeps = harvester;
+        this.carrierCreeps = carrier;
+        this.builderCreeps = builder;
         this.sources = sources;
         this.spawns = spawns;
         this.storage = storage;
@@ -21,19 +27,15 @@ export default class SpawnStrategy implements Strategy {
         this.room = room;
     }
 
-    public applyTo(spawn: StructureSpawn) {
+    public execute() {
         const idleSpawn = this.applyFindIdleSpawnStrategy(this.spawns);
         if (idleSpawn) {
-            const creepRole = this.getCreepRoleToSpawnNext(spawn);
+            const creepRole = this.getCreepRoleToSpawnNext(this.spawns[0]);
             if (creepRole) {
                 const spawnAction = new SpawnAction(creepRole, idleSpawn, this.room);
                 spawnAction.run();
             }
         }
-    }
-
-    public execute() {
-        throw new Error('Not implemented yet.')
     }
 
     private applyFindIdleSpawnStrategy(currentRoomSpawns: StructureSpawn[]) {
@@ -50,13 +52,13 @@ export default class SpawnStrategy implements Strategy {
     private getCreepRoleToSpawnNext(spawn: StructureSpawn): keyof CreepRoles | undefined {
         // This order is part of the strategy.
         // We want to prioritize workers over harvester, ..., and builders
-        if (_.size(this.creeps.worker) < 4) {
+        if (_.size(this.workerCreeps) < 4) {
             return 'worker';
-        } else if (_.size(this.creeps.harvester) < this.sources.length && (this.storage || this.containers.length > 0)) {
+        } else if (_.size(this.harvesterCreeps) < this.sources.length && (this.storage || this.containers.length > 0)) {
             return 'harvester';
-        } else if (_.size(this.creeps.carrier) < 1 && this.storage) {
+        } else if (_.size(this.carrierCreeps) < 1 && this.storage) {
             return 'carrier';
-        } else if (_.size(this.constructionSites) > 0 && _.size(this.creeps.builder) < 1) {
+        } else if (_.size(this.constructionSites) > 0 && _.size(this.builderCreeps) < 1) {
             return 'builder';
         }
 

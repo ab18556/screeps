@@ -6,16 +6,16 @@ export default class RechargeStrategy implements Strategy {
   private tombstones: Tombstone[];
   private activeContainers: StructureContainer[];
   private storage?: StructureStorage;
-  private storageLink?: StructureLink;
+  private storageAdjacentLink?: StructureLink;
   private sources: Source[];
   private harvesterCreeps: { [creepName: string]: HarvesterCreep };
 
-  constructor({ looseEnergyNodes, tombstones, activeContainers, storage, linkNearToStorage, sources, creeps: { harvester } }: RoomEntities) {
+  constructor({ looseEnergyNodes, tombstones, activeContainers, storage, storageAdjacentLink, sources, creepsGroupedByRole: { harvester } }: RoomEntities) {
     this.looseEnergyNodes = looseEnergyNodes;
     this.tombstones = tombstones;
     this.activeContainers = activeContainers;
     this.storage = storage;
-    this.storageLink = linkNearToStorage;
+    this.storageAdjacentLink = storageAdjacentLink;
     this.sources = sources;
     this.harvesterCreeps = harvester;
   }
@@ -32,8 +32,8 @@ export default class RechargeStrategy implements Strategy {
     else if (this.storage && this.storage.store.energy > 0) {
       this.withdrawEnergyFromStorage(creep, this.storage);
     }
-    else if (this.storageLink && this.storageLink.energy > 0) {
-      this.withdrawEnergyFromStorageLink(creep, this.storageLink);
+    else if (this.storageAdjacentLink && this.storageAdjacentLink.energy > 0) {
+      this.withdrawEnergyFromStorageAdjacentLink(creep, this.storageAdjacentLink);
     }
     else if (closestContainer) {
       this.withdrawEnergyFromContainer(creep, closestContainer);
@@ -61,9 +61,9 @@ export default class RechargeStrategy implements Strategy {
     }
   }
 
-  private withdrawEnergyFromStorageLink(creep: AnyCreep, storageLink: StructureLink) {
-    if (creep.withdraw(storageLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-      creep.moveTo(storageLink, { visualizePathStyle: { stroke: '#ffffff' } });
+  private withdrawEnergyFromStorageAdjacentLink(creep: AnyCreep, storageAdjacentLink: StructureLink) {
+    if (creep.withdraw(storageAdjacentLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+      creep.moveTo(storageAdjacentLink, { visualizePathStyle: { stroke: '#ffffff' } });
     }
   }
 
@@ -81,10 +81,10 @@ export default class RechargeStrategy implements Strategy {
 
   public static toggleFlagIsLookingForEnergy(creep: AnyCreep) {
     if (!creep.carry.energy) {
-      creep.memory.isLookingForEnergy = true;
+      creep.memory.status = 'lookingForEnergy';
     }
     else if (creep.carry.energy === creep.carryCapacity) {
-      creep.memory.isLookingForEnergy = false;
+      creep.memory.status = 'idle';
     }
   }
 
