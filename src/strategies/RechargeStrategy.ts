@@ -2,6 +2,7 @@ import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
 
 export default class RechargeStrategy implements Strategy {
+  private creeps: Creeps<Creep>;
   private looseEnergyNodes: Array<Resource<RESOURCE_ENERGY>>;
   private tombstones: Tombstone[];
   private activeContainers: StructureContainer[];
@@ -10,7 +11,8 @@ export default class RechargeStrategy implements Strategy {
   private sources: Source[];
   private harvesterCreeps: { [creepName: string]: HarvesterCreep };
 
-  constructor({ looseEnergyNodes, tombstones, activeContainers, storage, storageAdjacentLink, sources, creepsGroupedByRole: { harvester } }: RoomEntities) {
+  constructor({ creeps, looseEnergyNodes, tombstones, activeContainers, storage, storageAdjacentLink, sources, creepsGroupedByRole: { harvester } }: RoomEntities) {
+    this.creeps = creeps;
     this.looseEnergyNodes = looseEnergyNodes;
     this.tombstones = tombstones;
     this.activeContainers = activeContainers;
@@ -20,33 +22,32 @@ export default class RechargeStrategy implements Strategy {
     this.harvesterCreeps = harvester;
   }
 
-  public applyTo(creep: AnyCreep) {
-    const closestContainer = PositionHelpers.getClosestToPosition(this.activeContainers, creep.pos);
-
-    if (this.looseEnergyNodes.length > 0) {
-      this.pickupLooseEnergy(creep, this.looseEnergyNodes[0]);
-    }
-    else if (this.tombstones.length > 0) {
-      this.lootTombstone(creep, this.tombstones[0]);
-    }
-    else if (this.storage && this.storage.store.energy > 0) {
-      this.withdrawEnergyFromStorage(creep, this.storage);
-    }
-    else if (this.storageAdjacentLink && this.storageAdjacentLink.energy > 0) {
-      this.withdrawEnergyFromStorageAdjacentLink(creep, this.storageAdjacentLink);
-    }
-    else if (closestContainer) {
-      this.withdrawEnergyFromContainer(creep, closestContainer);
-    }
-    else if (this.sources.length > 0 && _.size(this.harvesterCreeps) === 0) {
-      const closestSource = PositionHelpers.getClosestToPosition(this.sources, creep.pos);
-      RechargeStrategy.harvestEnergyFromSource(creep, closestSource);
-    }
-
-  }
-
   public execute() {
-    throw new Error('Not implemented yet.')
+    _.forEach(this.creeps, (creep) => {
+      if (creep.memory.role === 'builder' || creep.memory.role === 'worker') {
+        this.toggleFlagIsLookingForEnergy(creep);
+        const closestContainer = PositionHelpers.getClosestToPosition(this.activeContainers, creep.pos);
+        if (this.looseEnergyNodes.length > 0) {
+          this.pickupLooseEnergy(creep, this.looseEnergyNodes[0]);
+        }
+        else if (this.tombstones.length > 0) {
+          this.lootTombstone(creep, this.tombstones[0]);
+        }
+        else if (this.storage && this.storage.store.energy > 0) {
+          this.withdrawEnergyFromStorage(creep, this.storage);
+        }
+        else if (this.storageAdjacentLink && this.storageAdjacentLink.energy > 0) {
+          this.withdrawEnergyFromStorageAdjacentLink(creep, this.storageAdjacentLink);
+        }
+        else if (closestContainer) {
+          this.withdrawEnergyFromContainer(creep, closestContainer);
+        }
+        else if (this.sources.length > 0 && _.size(this.harvesterCreeps) === 0) {
+          const closestSource = PositionHelpers.getClosestToPosition(this.sources, creep.pos);
+          RechargeStrategy.harvestEnergyFromSource(creep, closestSource);
+        }
+      }
+    })
   }
 
   private pickupLooseEnergy(creep: AnyCreep, looseEnergyNode: Resource<RESOURCE_ENERGY>) {
@@ -79,7 +80,7 @@ export default class RechargeStrategy implements Strategy {
     }
   }
 
-  public static toggleFlagIsLookingForEnergy(creep: AnyCreep) {
+  private toggleFlagIsLookingForEnergy(creep: AnyCreep) {
     if (!creep.carry.energy) {
       creep.memory.status = 'lookingForEnergy';
     }

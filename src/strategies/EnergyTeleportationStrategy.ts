@@ -1,4 +1,5 @@
 import RoomEntities from "RoomEntities";
+import Link from "actionnableEntities/Link";
 
 export default class EnergyTeleportationStrategy implements Strategy {
   private storageAdjacentLink?: StructureLink;
@@ -10,14 +11,16 @@ export default class EnergyTeleportationStrategy implements Strategy {
   }
 
   public execute() {
-    const storageAdjacentLink = this.storageAdjacentLink;
+    if (this.storageAdjacentLink) {
+      const storageAdjacentLink = new Link(this.storageAdjacentLink);
 
-    if (storageAdjacentLink) {
-      this.sourceAdjacentLinks.forEach((link) => {
-        if (link.energy === link.energyCapacity) {
-          link.transferEnergy(storageAdjacentLink);
-        }
-      });
+      if (storageAdjacentLink.isEmpty) {
+        this.sourceAdjacentLinks.forEach((structuredLink) => {
+          // todo: if storage is not full then we shall ask links to transfert
+          const link = new Link(structuredLink);
+          link.do('transferEnergy', storageAdjacentLink);
+        });
+      }
     }
   }
 }
