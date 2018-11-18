@@ -1,5 +1,5 @@
-import RoomEntities from "RoomEntities";
 import Link from "actionnableEntities/Link";
+import RoomEntities from "RoomEntities";
 
 export default class EnergyTeleportationStrategy implements Strategy {
   private storageAdjacentLink?: StructureLink;

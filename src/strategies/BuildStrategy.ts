@@ -1,6 +1,6 @@
+import DecoratedBuilderCreep from "actionnableEntities/DecoratedBuilderCreep";
 import PositionHelpers from "helpers/PositionHelpers";
 import RoomEntities from "RoomEntities";
-import DecoratedBuilderCreep from "actionnableEntities/DecoratedBuilderCreep";
 
 export default class BuildStrategy implements Strategy {
   private constructionSites: Array<ConstructionSite<BuildableStructureConstant>>;

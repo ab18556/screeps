@@ -1,7 +1,7 @@
 export abstract class ActionnableEntity<T, baseClassType> {
 
   constructor(baseObject: baseClassType) {
-    this.extendParentPrototype(baseObject)
+    this.extendParentPrototype(baseObject);
   }
 
   private extendParentPrototype(baseObject: baseClassType) {
