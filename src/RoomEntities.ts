@@ -1,4 +1,3 @@
-
 export default class RoomEntities {
   public readonly room: Room;
   public readonly spawns: StructureSpawn[];

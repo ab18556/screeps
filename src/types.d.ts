@@ -85,3 +85,14 @@ type Tasks = Task[];
 interface Strategy {
   execute(): void;
 }
+
+interface DecoratedBuilderCreep extends Creep, ActionnableEntity<ConstructionSite<BuildableStructureConstant>> { }
+
+interface Link extends StructureLink, ActionnableEntity<Link> {
+  isEmpty(): boolean;
+  isFull(): boolean;
+}
+
+interface ActionnableEntity<T> {
+  do(task: string, target: T): boolean;
+}
