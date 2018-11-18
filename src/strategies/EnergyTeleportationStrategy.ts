@@ -1,23 +1,21 @@
-import Link from "actionnableEntities/Link";
 import RoomEntities from "RoomEntities";
+import ActionnableEntityMutationFacility from "actionnableEntities/ActionnableEntityMutationFacility";
 
 export default class EnergyTeleportationStrategy implements Strategy {
-  private storageAdjacentLink?: StructureLink;
-  private sourceAdjacentLinks: StructureLink[];
+  private storageAdjacentLink?: Link;
+  private sourceAdjacentLinks: Link[];
 
   constructor({ storageAdjacentLink, sourceAdjacentLinks }: RoomEntities) {
-    this.storageAdjacentLink = storageAdjacentLink;
-    this.sourceAdjacentLinks = sourceAdjacentLinks;
+    this.storageAdjacentLink = storageAdjacentLink as Link;
+    this.sourceAdjacentLinks = sourceAdjacentLinks as Link[];
   }
 
   public execute() {
-    if (this.storageAdjacentLink) {
-      const storageAdjacentLink = new Link(this.storageAdjacentLink);
-
-      if (storageAdjacentLink.isEmpty) {
-        this.sourceAdjacentLinks.forEach((structuredLink) => {
+    const storageAdjacentLink = this.storageAdjacentLink;
+    if (storageAdjacentLink) {
+      if (storageAdjacentLink.isEmpty()) {
+        this.sourceAdjacentLinks.forEach((link) => {
           // todo: if storage is not full then we shall ask links to transfert
-          const link = new Link(structuredLink);
           link.do('transferEnergy', storageAdjacentLink);
         });
       }
