@@ -15,8 +15,8 @@ export default class RoomStrategy implements Strategy {
       if (this.isSimulation() || this.isClaimedRoom(room)) {
         const roomEntities = new RoomEntities(room);
         const rechargeStrategy = new RechargeStrategy(roomEntities);
-        const workStrategy = new WorkStrategy(roomEntities, rechargeStrategy);
-        const buildStrategy = new BuildStrategy(roomEntities, rechargeStrategy);
+        const workStrategy = new WorkStrategy(roomEntities);
+        const buildStrategy = new BuildStrategy(roomEntities);
         const carryStrategy = new CarryStrategy(roomEntities);
         const harvestStrategy = new HarvestStrategy(roomEntities);
         const transferStrategy = new TransferStrategy(roomEntities);
@@ -24,6 +24,7 @@ export default class RoomStrategy implements Strategy {
         const energyTeleportationStrategy = new EnergyTeleportationStrategy(roomEntities);
         const spawnStrategy = new SpawnStrategy(roomEntities);
         spawnStrategy.execute();
+        rechargeStrategy.execute();
         workStrategy.execute();
         buildStrategy.execute();
         carryStrategy.execute();

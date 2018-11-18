@@ -12,10 +12,9 @@ export default class WorkStrategy implements Strategy {
   private rechargeableTowers: StructureTower[];
   private constructionSites: Array<ConstructionSite<BuildableStructureConstant>>;
   private room: Room;
-  private rechargeStrategy: RechargeStrategy;
   private idleWorkerCreeps: CreepsGroupedByRole['worker'];
 
-  constructor(roomEntities: RoomEntities, rechargeStrategy: RechargeStrategy) {
+  constructor(roomEntities: RoomEntities) {
     const { rechargeableSpawnRelatedStructures, brokenStructures, creepsGroupedByRole: { builder, carrier, worker }, rechargeableTowers, constructionSites, room } = roomEntities;
 
     this.roomEntities = roomEntities;
@@ -26,7 +25,6 @@ export default class WorkStrategy implements Strategy {
     this.rechargeableTowers = rechargeableTowers;
     this.constructionSites = constructionSites;
     this.room = room;
-    this.rechargeStrategy = rechargeStrategy;
     this.idleWorkerCreeps = { ...worker };
   }
 
@@ -52,10 +50,7 @@ export default class WorkStrategy implements Strategy {
     const orderedWorkerCreepsToBeRecharged = this.optimizeWorkerCreepRechargeOrder(workerCreeps);
 
     _.forEach(orderedWorkerCreepsToBeRecharged, (workerCreep) => {
-      RechargeStrategy.toggleFlagIsLookingForEnergy(workerCreep);
-
       if (workerCreep.memory.status === 'lookingForEnergy') {
-        this.rechargeStrategy.applyTo(workerCreep);
         if (workerCreeps) {
           delete workerCreeps[workerCreep.name];
         }
