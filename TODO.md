@@ -37,3 +37,11 @@ When using game's memory as a cache for stuff that have been already _found_, we
 ## Recator Decorated* Classes
 
 when we'll be more oop, CreepRole won't be necessary anymore and then Decorated* will be renamed without the emphasis on the _pattern_ used.
+
+## Refactor ActionnableEntity.do
+
+current signature:
+public do(task: string, target: Link): boolean;
+
+should be:
+public do(task: iTask): boolean;
